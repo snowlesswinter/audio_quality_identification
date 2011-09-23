@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="resource">
+      <UniqueIdentifier>{310baa3b-1dfb-4054-b909-2c727e4fb043}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\resource\audio_quality_identification.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\resource\audio_quality_identification.rc2">
+      <Filter>resource</Filter>
+    </None>
+    <None Include="..\resource\audio_quality_identification.ico">
+      <Filter>resource</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\resource\resource.h">
+      <Filter>resource</Filter>
+    </ClInclude>
+    <ClInclude Include="main_dialog.h" />
+    <ClInclude Include="my_app.h" />
+    <ClInclude Include="mfc_predefine.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="my_app.cpp" />
+    <ClCompile Include="main_dialog.cpp" />
+  </ItemGroup>
+</Project>
