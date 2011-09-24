@@ -1,5 +1,7 @@
 
 /Debug
 /Release
+/ipch
 *.suo
 *.sdf
+*.opensdf

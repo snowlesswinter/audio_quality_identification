@@ -5,6 +5,7 @@
 #include <afxwin.h>
 
 #include "resource/resource.h" // main symbols
+#include "dir_traversing.h"
 
 class MainDialog : public CDialogEx
 {
@@ -14,14 +15,25 @@ public:
     enum { IDD = IDD_AUDIO_QUALITY_IDENTIFICATION_DIALOG };
 
 protected:
+    DECLARE_MESSAGE_MAP()
+
+private:
     virtual void DoDataExchange(CDataExchange* dataExch);    // DDX/DDV support
     virtual BOOL OnInitDialog();
     afx_msg void OnPaint();
     afx_msg HCURSOR OnQueryDragIcon();
-    DECLARE_MESSAGE_MAP()
+    afx_msg void OnCbnKillfocusComboAudioDir();
+    afx_msg void OnCbnKillfocusComboResultDir();
+    afx_msg void OnBnClickedButtonBrowseAudioDir();
+    afx_msg void OnBnClickedButtonBrowseResultDir();
+    afx_msg void OnBnClickedButtonStart();
 
-private:
     HICON icon_;
+    CComboBox audioDir_;
+    CButton browseAudio_;
+    CComboBox resultDir_;
+    CButton browseResult_;
+    DirTraversingProxy dirTraversing_;
 };
 
 #endif  // _MAIN_DIALOG_H_

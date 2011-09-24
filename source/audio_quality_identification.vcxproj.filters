@@ -25,9 +25,17 @@
     <ClInclude Include="main_dialog.h" />
     <ClInclude Include="my_app.h" />
     <ClInclude Include="mfc_predefine.h" />
+    <ClInclude Include="preference.h" />
+    <ClInclude Include="dir_traversing.h" />
+    <ClInclude Include="audio_quality_ident.h" />
+    <ClInclude Include="progress_dialog.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="my_app.cpp" />
     <ClCompile Include="main_dialog.cpp" />
+    <ClCompile Include="preference.cpp" />
+    <ClCompile Include="dir_traversing.cpp" />
+    <ClCompile Include="audio_quality_ident.cpp" />
+    <ClCompile Include="progress_dialog.cpp" />
   </ItemGroup>
 </Project>

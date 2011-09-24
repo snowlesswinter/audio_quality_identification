@@ -5,6 +5,10 @@
 
 #pragma once
 
+#ifdef NOMINMAX
+#undef NOMINMAX
+#endif
+
 #ifndef _SECURE_ATL
 #define _SECURE_ATL 1
 #endif
