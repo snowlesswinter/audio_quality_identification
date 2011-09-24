@@ -10,6 +10,7 @@
 #include "preference.h"
 #include "progress_dialog.h"
 #include "audio_quality_ident.h"
+#include "persistent_map.h"
 
 using std::wstring;
 using std::unique_ptr;
@@ -36,9 +37,10 @@ int __stdcall BrowseCallbackProc(HWND winHandle, UINT message, LPARAM param,
 class Intermedia : public DirTraversing::Callback
 {
 public:
-    Intermedia(DirTraversing::Callback* callback, const wstring& resultDir)
+    Intermedia(DirTraversing::Callback* callback, const wstring& resultDir,
+               PersistentMap* persResult)
         : callback_(callback)
-        , ident_(resultDir)
+        , ident_(resultDir, persResult)
         , initialized_(ident_.Init())
     {
     }
@@ -80,6 +82,11 @@ MainDialog::MainDialog(CWnd* parent)
     , resultDir_()
     , browseResult_()
     , dirTraversing_()
+    , persResult_(new PersistentMap)
+{
+}
+
+MainDialog::~MainDialog()
 {
 }
 
@@ -260,7 +267,7 @@ void MainDialog::OnBnClickedButtonStart()
         resultDir_.AddString(text);
 
     ProgressDialog d(this);
-    Intermedia inte(&d, resultDir);
+    Intermedia inte(&d, resultDir, persResult_.get());
     dirTraversing_.Traverse(&inte, audioDir.c_str());
     d.DoModal();
 }

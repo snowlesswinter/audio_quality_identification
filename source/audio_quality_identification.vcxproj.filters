@@ -29,6 +29,7 @@
     <ClInclude Include="dir_traversing.h" />
     <ClInclude Include="audio_quality_ident.h" />
     <ClInclude Include="progress_dialog.h" />
+    <ClInclude Include="persistent_map.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="my_app.cpp" />
@@ -37,5 +38,6 @@
     <ClCompile Include="dir_traversing.cpp" />
     <ClCompile Include="audio_quality_ident.cpp" />
     <ClCompile Include="progress_dialog.cpp" />
+    <ClCompile Include="persistent_map.cpp" />
   </ItemGroup>
 </Project>

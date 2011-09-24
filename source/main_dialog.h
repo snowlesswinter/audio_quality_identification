@@ -1,16 +1,20 @@
 #ifndef _MAIN_DIALOG_H_
 #define _MAIN_DIALOG_H_
 
+#include <memory>
+
 #include "mfc_predefine.h"
 #include <afxwin.h>
 
 #include "resource/resource.h" // main symbols
 #include "dir_traversing.h"
 
+class PersistentMap;
 class MainDialog : public CDialogEx
 {
 public:
     MainDialog(CWnd* parent = NULL);    // standard constructor
+    virtual ~MainDialog();
 
     enum { IDD = IDD_AUDIO_QUALITY_IDENTIFICATION_DIALOG };
 
@@ -34,6 +38,7 @@ private:
     CComboBox resultDir_;
     CButton browseResult_;
     DirTraversingProxy dirTraversing_;
+    std::unique_ptr<PersistentMap> persResult_;
 };
 
 #endif  // _MAIN_DIALOG_H_

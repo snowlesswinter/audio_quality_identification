@@ -8,6 +8,7 @@
 #include "third_party/multimedia_core/player_interface.h"
 #include "third_party/multimedia_core/audio_information_extracter_interface.h"
 #include "third_party/multimedia_core/audio_spectrum_extracter_interface.h"
+#include "persistent_map.h"
 
 using std::unique_ptr;
 using std::wstring;
@@ -71,10 +72,12 @@ bool LoadMultiMediaCoreFunctions(
 wofstream* resu = NULL;
 }
 
-AudioQualityIdent::AudioQualityIdent(const std::wstring& resultDir)
+AudioQualityIdent::AudioQualityIdent(const std::wstring& resultDir,
+                                     PersistentMap* persResult)
     : funcHost_(NULL, reinterpret_cast<void (__stdcall*)(void*)>(FreeLibrary))
     , mediaInfo_()
     , spectrumSource_()
+    , persResult_(persResult)
 {
     resu = new wofstream((resultDir + L"result.txt").c_str(), std::ios::out);
     resu->imbue(std::locale("chs"));
@@ -91,13 +94,20 @@ bool AudioQualityIdent::Init()
                                        &spectrumSource_);
 }
 
-void AudioQualityIdent::Identify(const wstring& fileName)
+void AudioQualityIdent::Identify(const wstring& fullPathName)
 {
     assert(mediaInfo_);
     if (!mediaInfo_)
         return;
 
-    ifstream audioFile(fileName.c_str(), std::ios::binary);
+    PersistentMap::ContainerType& persistentMap = persResult_->GetMap();
+    path p(fullPathName);
+    wstring fileName(p.filename().wstring());
+    auto iter = persistentMap.find(fileName);
+    if (iter != persistentMap.end())
+        return;
+
+    ifstream audioFile(fullPathName.c_str(), std::ios::binary);
     audioFile.seekg(0, std::ios::end);
     int fileSize = static_cast<int>(audioFile.tellg());
     if (fileSize > 0) {
@@ -110,6 +120,9 @@ void AudioQualityIdent::Identify(const wstring& fileName)
                                              NULL))
             return;
 
-        *resu << fileName << bitrate << std::endl;
+        persistentMap.insert(
+            PersistentMap::ContainerType::value_type(
+                fileName, PersistentMap::ElementType(bitrate, 0)));
+        *resu << fullPathName << bitrate << std::endl;
     }
 }

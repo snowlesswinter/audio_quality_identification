@@ -10,10 +10,11 @@
 //------------------------------------------------------------------------------
 struct ICorePlayer;
 struct IAudioInformationExtracter;
+class PersistentMap;
 class AudioQualityIdent
 {
 public:
-    AudioQualityIdent(const std::wstring& resultDir);
+    AudioQualityIdent(const std::wstring& resultDir, PersistentMap* persResult);
     ~AudioQualityIdent();
 
     bool Init();
@@ -25,6 +26,7 @@ private:
     std::unique_ptr<void, void (__stdcall*)(void*)> funcHost_;
     scoped_refptr<ICorePlayer> mediaInfo_;
     scoped_refptr<IAudioInformationExtracter> spectrumSource_;
+    PersistentMap* persResult_;
 };
 
 #endif  // _AUDIO_QUALITY_IDENT_H_

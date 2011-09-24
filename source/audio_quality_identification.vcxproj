@@ -24,6 +24,7 @@
     <ClInclude Include="main_dialog.h" />
     <ClInclude Include="mfc_predefine.h" />
     <ClInclude Include="my_app.h" />
+    <ClInclude Include="persistent_map.h" />
     <ClInclude Include="preference.h" />
     <ClInclude Include="progress_dialog.h" />
   </ItemGroup>
@@ -32,6 +33,7 @@
     <ClCompile Include="dir_traversing.cpp" />
     <ClCompile Include="main_dialog.cpp" />
     <ClCompile Include="my_app.cpp" />
+    <ClCompile Include="persistent_map.cpp" />
     <ClCompile Include="preference.cpp" />
     <ClCompile Include="progress_dialog.cpp" />
   </ItemGroup>
