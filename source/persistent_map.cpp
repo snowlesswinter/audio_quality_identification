@@ -80,22 +80,20 @@ void fun()
 //------------------------------------------------------------------------------
 namespace
 {
-wstring GetArchiveFileName()
+inline wstring GetArchiveFileName(const std::wstring& dir)
 {
-    unique_ptr<wchar_t[]> buf(new wchar_t[MAX_PATH]);
-    GetModuleFileName(NULL, buf.get(), MAX_PATH);
-    path p(buf.get());
-    return p.remove_filename().wstring() + L"/persistence.txt";
+    return path(dir + L"/").remove_filename().wstring() + L"/persistence.txt";
 }
 }
 
-PersistentMap::PersistentMap()
-    : map_()
+PersistentMap::PersistentMap(const std::wstring& dir)
+    : dir_(dir)
+    , map_()
 {
     // Setting locale is important for saving non-ascii characters.
     setlocale(LC_ALL, "chs");
 
-    ifstream inFile(GetArchiveFileName().c_str());
+    ifstream inFile(GetArchiveFileName(dir_).c_str());
     if (inFile.good()) {
         try {
             xml_iarchive inArch(inFile);
@@ -109,7 +107,7 @@ PersistentMap::PersistentMap()
 
 PersistentMap::~PersistentMap()
 {
-    ofstream outFile(GetArchiveFileName().c_str());
+    ofstream outFile(GetArchiveFileName(dir_).c_str());
     if (outFile.good()) {
         try {
             xml_oarchive outArch(outFile);

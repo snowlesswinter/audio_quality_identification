@@ -13,8 +13,7 @@ wstring GetStorageFilePathName()
 {
     unique_ptr<wchar_t[]> buf(new wchar_t[MAX_PATH]);
     GetModuleFileName(NULL, buf.get(), MAX_PATH);
-    path p(buf.get());
-    return p.remove_filename().wstring() + L"/preference.ini";
+    return path(buf.get()).remove_filename().wstring() + L"/preference.ini";
 }
 
 const wchar_t* audioLoc = L"audio_location";

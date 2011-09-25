@@ -6,19 +6,20 @@
 
 #include "third_party/chromium/base/basictypes.h"
 #include "third_party/chromium/base/memory/ref_counted.h"
+#include "third_party/chromium/base/synchronization/cancellation_flag.h"
 
 //------------------------------------------------------------------------------
 struct ICorePlayer;
 struct IAudioInformationExtracter;
-class PersistentMap;
 class AudioQualityIdent
 {
 public:
-    AudioQualityIdent(const std::wstring& resultDir, PersistentMap* persResult);
+    explicit AudioQualityIdent(
+        const std::shared_ptr<base::CancellationFlag>& cancelFlag);
     ~AudioQualityIdent();
 
     bool Init();
-    void Identify(const std::wstring& fileName);
+    bool Identify(const std::wstring& fileName, int* bitrate, int* cutoff);
 
 private:
     DISALLOW_COPY_AND_ASSIGN(AudioQualityIdent);
@@ -26,7 +27,7 @@ private:
     std::unique_ptr<void, void (__stdcall*)(void*)> funcHost_;
     scoped_refptr<ICorePlayer> mediaInfo_;
     scoped_refptr<IAudioInformationExtracter> spectrumSource_;
-    PersistentMap* persResult_;
+    std::shared_ptr<base::CancellationFlag> cancelFlag_;
 };
 
 #endif  // _AUDIO_QUALITY_IDENT_H_

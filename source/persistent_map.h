@@ -12,7 +12,7 @@ public:
     typedef std::pair<int, int> ElementType;
     typedef std::map<std::wstring, ElementType> ContainerType;
 
-    PersistentMap();
+    explicit PersistentMap(const std::wstring& dir);
     ~PersistentMap();
 
     ContainerType& GetMap() { return map_; }
@@ -20,6 +20,7 @@ public:
 private:
     DISALLOW_COPY_AND_ASSIGN(PersistentMap);
 
+    std::wstring dir_;
     ContainerType map_;
 };
 

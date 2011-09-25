@@ -1,6 +1,7 @@
 #include "audio_quality_ident.h"
 
 #include <fstream>
+#include <vector>
 
 #include <boost/filesystem.hpp>
 #include <windows.h>
@@ -8,13 +9,17 @@
 #include "third_party/multimedia_core/player_interface.h"
 #include "third_party/multimedia_core/audio_information_extracter_interface.h"
 #include "third_party/multimedia_core/audio_spectrum_extracter_interface.h"
+#include "third_party/multimedia_core/common/unknown_impl.h"
 #include "persistent_map.h"
 
 using std::unique_ptr;
 using std::wstring;
 using std::ifstream;
-using std::wofstream;
+using std::vector;
+using std::max;
+using std::shared_ptr;
 using boost::filesystem3::path;
+using base::CancellationFlag;
 
 namespace {
 typedef unique_ptr<void, void (__stdcall*)(void*)> FuncHostType;
@@ -69,23 +74,109 @@ bool LoadMultiMediaCoreFunctions(
     return true;
 }
 
-wofstream* resu = NULL;
+class MySpectrumReceiver : public kugou::CUnknown, public IAudioSpectrumReceiver
+{
+public:
+    explicit MySpectrumReceiver(
+        const shared_ptr<base::CancellationFlag>& cancelFlag);
+    virtual ~MySpectrumReceiver() {}
+
+    DELEGATE_IUNKNOWN;
+    virtual bool __stdcall Receive(IAudioSpectrum* samples);
+
+    int GetAverageFreq()
+    {
+        vector<int> freqs = freqs_;
+
+        // Exclude some data at the end(about 10 sec).
+        int toRemove = 10;
+        while (freqs.size() && (toRemove-- >= 0))
+            freqs.pop_back();
+
+        double sum = 0.0;
+        for (auto i = freqs.begin(), e = freqs.end(); i != e; ++i)
+            sum += *i;
+
+        return static_cast<int>(sum / freqs.size());
+    }
+
+private:
+    int receiveCount_;
+    unique_ptr<double[]> power_;
+    vector<int> freqs_;
+    std::shared_ptr<base::CancellationFlag> cancelFlag_;
+};
+
+MySpectrumReceiver::MySpectrumReceiver(
+    const shared_ptr<base::CancellationFlag>& cancelFlag)
+    : kugou::CUnknown(NULL, NULL)
+    , receiveCount_(1)
+    , power_()
+    , cancelFlag_(cancelFlag)
+{
 }
 
-AudioQualityIdent::AudioQualityIdent(const std::wstring& resultDir,
-                                     PersistentMap* persResult)
+bool MySpectrumReceiver::Receive(IAudioSpectrum* spectrum)
+{
+    if (cancelFlag_ && cancelFlag_->IsSet())
+        return false;
+
+    int* ptr = spectrum->GetFrequencies();
+    const int amount = spectrum->GetFrequenciesCount();
+
+    if (!power_.get()) {
+        power_.reset(new double[amount]);
+        for (int i = 0; i < amount; ++i)
+            power_[i] = 0.0;
+    }
+
+    for (int i = 0; i < amount; ++i) {
+        const double d = 10 * log(static_cast<double>(ptr[i]));
+//         if (d > 0.0)
+//             power_[i] += d;
+        power_[i] = max(power_[i], d);
+    }
+
+    const int checkPointInterval = 20;
+    const bool checkPoint = !!(receiveCount_++ % checkPointInterval);
+    if (!checkPoint) {
+//         for (int i = amount - 1; i >= 0; --i)
+//             power_[i] /= 20;
+
+        double prev = power_[amount - 1];
+        int cutOffFreqIndex = 0;
+        for (int i = amount - 2; i >= 0; --i) {
+            double diff = abs(prev - power_[i]);
+            if (diff > 3.0) {
+                cutOffFreqIndex = i;
+                break;
+            }
+
+            prev = power_[i];
+        }
+
+        int freq = (cutOffFreqIndex + 1) * 44100 / 1024;
+        freqs_.push_back(freq);
+
+        for (int i = 0; i < amount; ++i)
+            power_[i] = 0.0;
+    }
+
+    return true;
+}
+}
+
+AudioQualityIdent::AudioQualityIdent(
+    const shared_ptr<CancellationFlag>& cancelFlag)
     : funcHost_(NULL, reinterpret_cast<void (__stdcall*)(void*)>(FreeLibrary))
     , mediaInfo_()
     , spectrumSource_()
-    , persResult_(persResult)
+    , cancelFlag_(cancelFlag)
 {
-    resu = new wofstream((resultDir + L"result.txt").c_str(), std::ios::out);
-    resu->imbue(std::locale("chs"));
 }
 
 AudioQualityIdent::~AudioQualityIdent()
 {
-    delete resu;
 }
 
 bool AudioQualityIdent::Init()
@@ -94,18 +185,18 @@ bool AudioQualityIdent::Init()
                                        &spectrumSource_);
 }
 
-void AudioQualityIdent::Identify(const wstring& fullPathName)
+bool AudioQualityIdent::Identify(const wstring& fullPathName, int* bitrate,
+                                 int* cutoff)
 {
     assert(mediaInfo_);
-    if (!mediaInfo_)
-        return;
+    assert(spectrumSource_);
+    assert(bitrate);
+    assert(cutoff);
+    if (!mediaInfo_ || !spectrumSource_ || !bitrate || !cutoff)
+        return false;
 
-    PersistentMap::ContainerType& persistentMap = persResult_->GetMap();
-    path p(fullPathName);
-    wstring fileName(p.filename().wstring());
-    auto iter = persistentMap.find(fileName);
-    if (iter != persistentMap.end())
-        return;
+    *bitrate = 0;
+    *cutoff = 0;
 
     ifstream audioFile(fullPathName.c_str(), std::ios::binary);
     audioFile.seekg(0, std::ios::end);
@@ -114,15 +205,32 @@ void AudioQualityIdent::Identify(const wstring& fullPathName)
         unique_ptr<int8[]> buf(new int8[fileSize]);
         audioFile.seekg(0);
         audioFile.read(reinterpret_cast<char*>(buf.get()), fileSize);
-        int bitrate;
-        if (!mediaInfo_->GetInstantMediaInfo(buf.get(), fileSize, NULL,
-                                             &bitrate, NULL, NULL, NULL, NULL,
-                                             NULL))
-            return;
 
-        persistentMap.insert(
-            PersistentMap::ContainerType::value_type(
-                fileName, PersistentMap::ElementType(bitrate, 0)));
-        *resu << fullPathName << bitrate << std::endl;
+        // Retrieve the average bitrate.
+        if (!mediaInfo_->GetInstantMediaInfo(buf.get(), fileSize, NULL,
+                                             bitrate, NULL, NULL, NULL, NULL,
+                                             NULL))
+            return false;
+
+        // Retrieve the average cutoff frequency.
+        scoped_refptr<MySpectrumReceiver> receiver(
+            new MySpectrumReceiver(cancelFlag_));
+        if (!spectrumSource_->Open(fullPathName.c_str()))
+            return false;
+
+        // Exclude the first 10 sec data.
+        if (!spectrumSource_->Seek(10.0))
+            return false;
+
+        int channel = 0;
+        IAudioSpectrumReceiver* r = receiver.get();
+        spectrumSource_->ExtractSpectrum(&channel, 1, 1024, &r);
+        if (cancelFlag_ && cancelFlag_->IsSet())
+            return false;
+
+        *cutoff = receiver->GetAverageFreq();
+        return true;
     }
+
+    return false;
 }

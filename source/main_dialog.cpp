@@ -4,6 +4,7 @@
 #include <memory>
 
 #include <boost/algorithm/string.hpp>
+#include <boost/filesystem.hpp>
 #include <afxdialogex.h>
 
 #include "my_app.h"
@@ -11,10 +12,14 @@
 #include "progress_dialog.h"
 #include "audio_quality_ident.h"
 #include "persistent_map.h"
+#include "third_party/chromium/base/synchronization/cancellation_flag.h"
 
 using std::wstring;
 using std::unique_ptr;
+using std::shared_ptr;
 using boost::algorithm::trim_right;
+using boost::filesystem3::path;
+using base::CancellationFlag;
 
 namespace {
 int __stdcall BrowseCallbackProc(HWND winHandle, UINT message, LPARAM param,
@@ -38,17 +43,24 @@ class Intermedia : public DirTraversing::Callback
 {
 public:
     Intermedia(DirTraversing::Callback* callback, const wstring& resultDir,
-               PersistentMap* persResult)
+               const shared_ptr<CancellationFlag>& cancelFlag)
         : callback_(callback)
-        , ident_(resultDir, persResult)
-        , initialized_(ident_.Init())
+        , ident_(cancelFlag)
+        , initialized_(false)
+        , persResult_()
+        , resultDir_(resultDir)
     {
     }
     ~Intermedia() {}
 
     virtual void Initializing(int totalFiles)
     {
+        if (initialized_)
+            return;
+
         callback_->Initializing(totalFiles);
+        persResult_.reset(new PersistentMap(resultDir_));
+        initialized_ = ident_.Init();
     }
 
     virtual bool Progress(const std::wstring& current)
@@ -56,8 +68,24 @@ public:
         if (!initialized_)
             return false;
 
-        ident_.Identify(current);
-        return callback_->Progress(current);
+        bool rv = callback_->Progress(current);
+        if (!rv)
+            return rv;
+
+        PersistentMap::ContainerType& persistentMap = persResult_->GetMap();
+        wstring fileName(path(current).filename().wstring());
+        auto iter = persistentMap.find(fileName);
+        if (iter != persistentMap.end())
+            return rv;
+
+        int bitrate;
+        int cutoff;
+        if (ident_.Identify(current, &bitrate, &cutoff))
+            persistentMap.insert(
+                PersistentMap::ContainerType::value_type(
+                    fileName, PersistentMap::ElementType(bitrate, cutoff)));
+
+        return rv;
     }
 
     virtual void Done()
@@ -71,6 +99,8 @@ private:
     DirTraversing::Callback* callback_;
     AudioQualityIdent ident_;
     bool initialized_;
+    unique_ptr<PersistentMap> persResult_;
+    wstring resultDir_;
 };
 }
 
@@ -82,7 +112,6 @@ MainDialog::MainDialog(CWnd* parent)
     , resultDir_()
     , browseResult_()
     , dirTraversing_()
-    , persResult_(new PersistentMap)
 {
 }
 
@@ -267,7 +296,7 @@ void MainDialog::OnBnClickedButtonStart()
         resultDir_.AddString(text);
 
     ProgressDialog d(this);
-    Intermedia inte(&d, resultDir, persResult_.get());
+    Intermedia inte(&d, resultDir, d.GetCancellationFlag());
     dirTraversing_.Traverse(&inte, audioDir.c_str());
     d.DoModal();
 }

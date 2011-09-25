@@ -4,6 +4,10 @@
 
 #include <afxdialogex.h>
 
+using std::shared_ptr;
+using std::make_shared;
+using base::CancellationFlag;
+
 namespace {
 enum
 {
@@ -20,7 +24,7 @@ ProgressDialog::ProgressDialog(CWnd* parent)
     , progress_()
     , total_(0)
     , finished_(0)
-    , cancelFlag_(false)
+    , cancelFlag_(make_shared<CancellationFlag>())
 {
 }
 
@@ -38,12 +42,22 @@ bool ProgressDialog::Progress(const std::wstring& current)
     currentFile_.SetWindowText(current.c_str());
     finished_++;
     progress_.SetPos(finished_);
-    return !cancelFlag_;
+    return !cancelFlag_->IsSet();
 }
 
 void ProgressDialog::Done()
 {
     PostMessage(kMessageDone, 0, 0);
+}
+
+shared_ptr<CancellationFlag> ProgressDialog::GetCancellationFlag()
+{
+    return cancelFlag_;
+}
+
+void ProgressDialog::ResetCancellationFlag()
+{
+    cancelFlag_ = make_shared<CancellationFlag>();
 }
 
 void ProgressDialog::DoDataExchange(CDataExchange* dataExch)
@@ -60,7 +74,12 @@ END_MESSAGE_MAP()
 
 void ProgressDialog::OnCancel()
 {
-    cancelFlag_ = true;
+    cancelFlag_->Set();
+    CWnd* cancelButton = GetDlgItem(IDCANCEL);
+    if (cancelButton)
+        cancelButton->EnableWindow(FALSE);
+
+    SetWindowText(L"Canceling...");
 }
 
 BOOL ProgressDialog::OnInitDialog()
@@ -89,7 +108,6 @@ LRESULT ProgressDialog::OnDone(WPARAM w, LPARAM l)
 {
     total_ = 0;
     finished_ = 0;
-    cancelFlag_ = false;
     EndDialog(IDOK);
     return 0;
 }
