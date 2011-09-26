@@ -78,12 +78,19 @@ public:
         if (iter != persistentMap.end())
             return rv;
 
+        int sampleRate;
         int bitrate;
+        int channels;
         int cutoff;
-        if (ident_.Identify(current, &bitrate, &cutoff))
+        int64 duration;
+        wstring format;
+        if (ident_.Identify(current, &sampleRate, &bitrate, &channels,
+                            &cutoff, &duration, &format))
             persistentMap.insert(
                 PersistentMap::ContainerType::value_type(
-                    fileName, PersistentMap::ElementType(bitrate, cutoff)));
+                    fileName,
+                    PersistentMap::MediaInfo(sampleRate, bitrate, channels,
+                                             cutoff, duration, format)));
 
         return rv;
     }

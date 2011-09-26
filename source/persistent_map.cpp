@@ -19,6 +19,24 @@ using boost::archive::xml_iarchive;
 using boost::archive::xml_oarchive;
 using boost::archive::archive_exception;
 
+namespace boost
+{
+namespace serialization
+{
+template <typename Archive>
+void serialize(Archive& ar, PersistentMap::MediaInfo& info,
+               const unsigned int version)
+{
+    ar & BOOST_SERIALIZATION_NVP(info.SampleRate);
+    ar & BOOST_SERIALIZATION_NVP(info.Bitrate);
+    ar & BOOST_SERIALIZATION_NVP(info.Channels);
+    ar & BOOST_SERIALIZATION_NVP(info.CutoffFreq);
+    ar & BOOST_SERIALIZATION_NVP(info.Duration);
+    ar & BOOST_SERIALIZATION_NVP(info.Format);
+}
+}
+}
+
 namespace for_test
 {
 template <typename T>

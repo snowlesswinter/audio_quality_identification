@@ -19,7 +19,9 @@ public:
     ~AudioQualityIdent();
 
     bool Init();
-    bool Identify(const std::wstring& fileName, int* bitrate, int* cutoff);
+    bool Identify(const std::wstring& fullPathName, int* sampleRate,
+                  int* bitrate, int* channels, int* cutoff, int64* duration,
+                  std::wstring* format);
 
 private:
     DISALLOW_COPY_AND_ASSIGN(AudioQualityIdent);

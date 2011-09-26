@@ -74,11 +74,28 @@ bool LoadMultiMediaCoreFunctions(
     return true;
 }
 
+class PassString : public kugou::CUnknown, public IPassString
+{
+public:
+    PassString(wstring* str) : kugou::CUnknown(NULL, NULL), str_(str) {}
+
+    DELEGATE_IUNKNOWN;
+
+    virtual const wchar_t* __stdcall GetContent() { return str_->c_str(); };
+    virtual void __stdcall SetContent(const wchar_t* content)
+    {
+        *str_ = content;
+    }
+
+private:
+    wstring* str_;
+};
+
 class MySpectrumReceiver : public kugou::CUnknown, public IAudioSpectrumReceiver
 {
 public:
-    explicit MySpectrumReceiver(
-        const shared_ptr<base::CancellationFlag>& cancelFlag);
+    MySpectrumReceiver(int sampleRate,
+                       const shared_ptr<base::CancellationFlag>& cancelFlag);
     virtual ~MySpectrumReceiver() {}
 
     DELEGATE_IUNKNOWN;
@@ -104,14 +121,17 @@ private:
     int receiveCount_;
     unique_ptr<double[]> power_;
     vector<int> freqs_;
+    int sampleRate_;
     std::shared_ptr<base::CancellationFlag> cancelFlag_;
 };
 
 MySpectrumReceiver::MySpectrumReceiver(
-    const shared_ptr<base::CancellationFlag>& cancelFlag)
+    int sampleRate, const shared_ptr<base::CancellationFlag>& cancelFlag)
     : kugou::CUnknown(NULL, NULL)
     , receiveCount_(1)
     , power_()
+    , freqs_()
+    , sampleRate_(sampleRate)
     , cancelFlag_(cancelFlag)
 {
 }
@@ -123,6 +143,8 @@ bool MySpectrumReceiver::Receive(IAudioSpectrum* spectrum)
 
     int* ptr = spectrum->GetFrequencies();
     const int amount = spectrum->GetFrequenciesCount();
+    if (amount <= 1)
+        return false;
 
     if (!power_.get()) {
         power_.reset(new double[amount]);
@@ -155,7 +177,7 @@ bool MySpectrumReceiver::Receive(IAudioSpectrum* spectrum)
             prev = power_[i];
         }
 
-        int freq = (cutOffFreqIndex + 1) * 44100 / 1024;
+        int freq = (cutOffFreqIndex + 1) * (sampleRate_ / 2) / (amount - 1);
         freqs_.push_back(freq);
 
         for (int i = 0; i < amount; ++i)
@@ -185,18 +207,29 @@ bool AudioQualityIdent::Init()
                                        &spectrumSource_);
 }
 
-bool AudioQualityIdent::Identify(const wstring& fullPathName, int* bitrate,
-                                 int* cutoff)
+bool AudioQualityIdent::Identify(const wstring& fullPathName, int* sampleRate,
+                                 int* bitrate, int* channels, int* cutoff,
+                                 int64* duration, wstring* format)
 {
     assert(mediaInfo_);
     assert(spectrumSource_);
+    assert(sampleRate);
     assert(bitrate);
+    assert(channels);
     assert(cutoff);
-    if (!mediaInfo_ || !spectrumSource_ || !bitrate || !cutoff)
+    assert(duration);
+    assert(format);
+    if (!mediaInfo_ || !spectrumSource_ || !sampleRate || !bitrate ||
+        !channels || !cutoff || !duration || !format)
         return false;
 
+    const wchar_t* unknownFormat = L"[Unknown]";
+    *sampleRate = 0;
     *bitrate = 0;
+    *channels = 0;
     *cutoff = 0;
+    *duration = 0;
+    *format = unknownFormat;
 
     ifstream audioFile(fullPathName.c_str(), std::ios::binary);
     audioFile.seekg(0, std::ios::end);
@@ -206,21 +239,31 @@ bool AudioQualityIdent::Identify(const wstring& fullPathName, int* bitrate,
         audioFile.seekg(0);
         audioFile.read(reinterpret_cast<char*>(buf.get()), fileSize);
 
-        // Retrieve the average bitrate.
-        if (!mediaInfo_->GetInstantMediaInfo(buf.get(), fileSize, NULL,
-                                             bitrate, NULL, NULL, NULL, NULL,
-                                             NULL))
-            return false;
+        // Retrieve all necessary media information.
+        PassString ps(format);
+        if (!mediaInfo_->GetInstantMediaInfo(buf.get(), fileSize, duration,
+                                             bitrate, &ps, NULL, sampleRate,
+                                             channels, NULL)) {
+            // Return true and mark this file as an unrecognized format.
+            return true;
+        }
+
+        if (format->empty())
+            *format = unknownFormat;
 
         // Retrieve the average cutoff frequency.
         scoped_refptr<MySpectrumReceiver> receiver(
-            new MySpectrumReceiver(cancelFlag_));
-        if (!spectrumSource_->Open(fullPathName.c_str()))
-            return false;
+            new MySpectrumReceiver(*sampleRate, cancelFlag_));
+        if (!spectrumSource_->Open(fullPathName.c_str())) {
+            // Return true and mark this file as an unrecognized format.
+            return true;
+        }
 
         // Exclude the first 10 sec data.
-        if (!spectrumSource_->Seek(10.0))
-            return false;
+        if (!spectrumSource_->Seek(10.0)) {
+            // Return true so that we know it is a short-duration music.
+            return true;
+        }
 
         int channel = 0;
         IAudioSpectrumReceiver* r = receiver.get();

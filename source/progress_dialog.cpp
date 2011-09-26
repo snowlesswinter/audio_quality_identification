@@ -34,7 +34,11 @@ ProgressDialog::~ProgressDialog()
 
 void ProgressDialog::Initializing(int totalFiles)
 {
-    PostMessage(kMessageInitializing, totalFiles, 0);
+    assert(totalFiles > 0);
+    total_ = totalFiles > 0 ? totalFiles : 1;
+    finished_ = 0;
+    if (IsWindow(GetSafeHwnd()))
+        PostMessage(kMessageInitializing, totalFiles, 0);
 }
 
 bool ProgressDialog::Progress(const std::wstring& current)
@@ -94,10 +98,6 @@ BOOL ProgressDialog::OnInitDialog()
 
 LRESULT ProgressDialog::OnInitializing(WPARAM w, LPARAM l)
 {
-    assert(w >= 0);
-
-    total_ = w;
-    finished_ = 0;
     if (progress_.GetSafeHwnd())
         progress_.SetRange32(0, total_);
 

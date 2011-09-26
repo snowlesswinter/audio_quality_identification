@@ -9,8 +9,38 @@
 class PersistentMap
 {
 public:
-    typedef std::pair<int, int> ElementType;
-    typedef std::map<std::wstring, ElementType> ContainerType;
+    struct MediaInfo
+    {
+        MediaInfo()
+            : SampleRate(0)
+            , Bitrate(0)
+            , Channels(0)
+            , CutoffFreq(0)
+            , Duration(0)
+            , Format(L"[Unknown]")
+        {
+        }
+
+        MediaInfo(int sampleRate, int bitrate, int channels, int cutoffFreq,
+                  int64 duration, const std::wstring& format)
+            : SampleRate(sampleRate)
+            , Bitrate(bitrate)
+            , Channels(channels)
+            , CutoffFreq(cutoffFreq)
+            , Duration(duration)
+            , Format(format)
+        {
+        }
+
+        int SampleRate;
+        int Bitrate;
+        int Channels;
+        int CutoffFreq;
+        int64 Duration;
+        std::wstring Format;
+    };
+
+    typedef std::map<std::wstring, MediaInfo> ContainerType;
 
     explicit PersistentMap(const std::wstring& dir);
     ~PersistentMap();
