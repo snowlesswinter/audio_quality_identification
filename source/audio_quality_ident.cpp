@@ -97,7 +97,7 @@ public:
         for (auto i = freqs.begin(), e = freqs.end(); i != e; ++i)
             sum += *i;
 
-        return static_cast<int>(sum / freqs.size());
+        return freqs.empty() ? 0 : static_cast<int>(sum / freqs.size());
     }
 
 private:
