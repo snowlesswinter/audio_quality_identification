@@ -9,6 +9,7 @@
 #include <dbghelp.h>
 
 #include "main_dialog.h"
+#include "persistent_map.h"
 #include "third_party/chromium/base/at_exit.h"
 
 using std::wstringstream;
@@ -29,6 +30,8 @@ base::AtExitManager* atExit = NULL;
 LONG __stdcall MyUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo)
 {
     ptime now = second_clock::local_time();
+
+    PersistentMapGlobal::GetInstance()->EmergencySerialize();
 
     unique_ptr<wchar_t[]> buf(new wchar_t[MAX_PATH]);
     GetModuleFileName(NULL, buf.get(), MAX_PATH);

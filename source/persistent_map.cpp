@@ -14,6 +14,7 @@ using std::basic_string;
 using std::wstring;
 using std::ifstream;
 using std::ofstream;
+using std::shared_ptr;
 using boost::filesystem3::path;
 using boost::archive::xml_iarchive;
 using boost::archive::xml_oarchive;
@@ -98,10 +99,25 @@ void fun()
 //------------------------------------------------------------------------------
 namespace
 {
-inline wstring GetArchiveFileName(const std::wstring& dir)
+inline wstring GetArchiveFileName(const std::wstring& dir,
+                                  const wchar_t* fileName)
 {
-    return path(dir + L"/").remove_filename().wstring() + L"/persistence.txt";
+    return path(dir + L"/").remove_filename().wstring() + L"/" + fileName;
 }
+
+const wchar_t* defaultArchiveFileName = L"/persistence.xml";
+}
+
+shared_ptr<PersistentMap> PersistentMap::CreateInstance(const wstring& dir)
+{
+    shared_ptr<PersistentMap> rv(new PersistentMap(dir));
+    PersistentMapGlobal::GetInstance()->SetCurrentInstance(rv);
+    return rv;
+}
+
+PersistentMap::~PersistentMap()
+{
+    SerializeNow(defaultArchiveFileName);
 }
 
 PersistentMap::PersistentMap(const std::wstring& dir)
@@ -111,7 +127,7 @@ PersistentMap::PersistentMap(const std::wstring& dir)
     // Setting locale is important for saving non-ascii characters.
     setlocale(LC_ALL, "chs");
 
-    ifstream inFile(GetArchiveFileName(dir_).c_str());
+    ifstream inFile(GetArchiveFileName(dir_, defaultArchiveFileName).c_str());
     if (inFile.good()) {
         try {
             xml_iarchive inArch(inFile);
@@ -123,9 +139,9 @@ PersistentMap::PersistentMap(const std::wstring& dir)
     }
 }
 
-PersistentMap::~PersistentMap()
+void PersistentMap::SerializeNow(const wchar_t* fileName)
 {
-    ofstream outFile(GetArchiveFileName(dir_).c_str());
+    ofstream outFile(GetArchiveFileName(dir_, fileName).c_str());
     if (outFile.good()) {
         try {
             xml_oarchive outArch(outFile);
@@ -135,4 +151,30 @@ PersistentMap::~PersistentMap()
                         "Failed to save analyzing result.", "ERROR", MB_OK);
         }
     }
+}
+
+//------------------------------------------------------------------------------
+PersistentMapGlobal* PersistentMapGlobal::GetInstance()
+{
+    return Singleton<PersistentMapGlobal>::get();
+}
+
+void PersistentMapGlobal::EmergencySerialize()
+{
+    shared_ptr<PersistentMap> m = globalRef_.Get().lock();
+    if (m) {
+        // Data in the map maybe corrupted, save to another file.
+        m->SerializeNow(L"emergency_archive.xml");
+    }
+}
+
+PersistentMapGlobal::PersistentMapGlobal()
+    : globalRef_()
+{
+}
+
+void PersistentMapGlobal::SetCurrentInstance(
+    const shared_ptr<PersistentMap>& inst)
+{
+    globalRef_.Set(inst);
 }

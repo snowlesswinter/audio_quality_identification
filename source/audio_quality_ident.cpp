@@ -10,7 +10,6 @@
 #include "third_party/multimedia_core/audio_information_extracter_interface.h"
 #include "third_party/multimedia_core/audio_spectrum_extracter_interface.h"
 #include "third_party/multimedia_core/common/unknown_impl.h"
-#include "persistent_map.h"
 
 using std::unique_ptr;
 using std::wstring;

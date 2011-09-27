@@ -59,7 +59,7 @@ public:
             return;
 
         callback_->Initializing(totalFiles);
-        persResult_.reset(new PersistentMap(resultDir_));
+        persResult_ = PersistentMap::CreateInstance(resultDir_);
         initialized_ = ident_.Init();
     }
 
@@ -92,9 +92,13 @@ public:
                         fileName,
                         PersistentMap::MediaInfo(sampleRate, bitrate, channels,
                                                  cutoff, duration, format)));
-        } catch (const std::exception& e) {
-            persResult_.reset(); // Save all analyzed data is crucial.
-            throw e;
+        } catch (const std::exception&) {
+            persistentMap.insert(
+                PersistentMap::ContainerType::value_type(
+                    fileName,
+                    PersistentMap::MediaInfo(0, 0, 0, 0, 0,
+                                             wstring(L"[Crash]"))));
+            return rv;
         }
 
         return rv;
@@ -111,7 +115,7 @@ private:
     DirTraversing::Callback* callback_;
     AudioQualityIdent ident_;
     bool initialized_;
-    unique_ptr<PersistentMap> persResult_;
+    shared_ptr<PersistentMap> persResult_;
     wstring resultDir_;
 };
 }
