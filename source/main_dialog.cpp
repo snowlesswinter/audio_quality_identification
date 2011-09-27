@@ -6,6 +6,7 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/lexical_cast.hpp>
 #include <afxdialogex.h>
 
 #include "my_app.h"
@@ -19,8 +20,10 @@ using std::wstring;
 using std::unique_ptr;
 using std::shared_ptr;
 using std::wofstream;
+using std::endl;
 using boost::algorithm::trim_right;
 using boost::filesystem3::path;
+using boost::lexical_cast;
 using base::CancellationFlag;
 
 namespace {
@@ -39,6 +42,132 @@ int __stdcall BrowseCallbackProc(HWND winHandle, UINT message, LPARAM param,
     }
 
     return 0;
+}
+
+void LimitPricision(wstring* s)
+{
+    auto pos = s->rfind('.');
+    if (pos != wstring::npos)
+        *s = s->substr(0, pos + 3);
+}
+
+void CreateBitrateToCutoffReport(const PersistentMap::ContainerType& result,
+                                 const wstring& resultDir)
+{
+    std::map<int, std::pair<double, int>> bitrateToCutoff;
+    for (auto i = result.begin(), e = result.end(); i != e; ++i) {
+        const PersistentMap::MediaInfo& info = i->second;
+        if (info.Format.empty() || (L"[Unknown]" == info.Format) ||
+            (L"[Crash]" == info.Format))
+            continue;
+
+        const int bitrate = info.Bitrate / 1000;
+
+        auto iter = bitrateToCutoff.find(bitrate);
+        if (iter == bitrateToCutoff.end()) {
+            bitrateToCutoff.insert(
+                std::pair<int, std::pair<double, int>>(
+                    bitrate, std::pair<double, int>(info.CutoffFreq, 1)));
+        } else {
+            iter->second.second++;
+            iter->second.first += info.CutoffFreq;
+        }
+    }
+
+    wofstream output(
+        path(resultDir + L"/").remove_filename().wstring() +
+            L"/bitrate_cutoff_report.txt");
+
+    // Print header.
+    const wstring field1 = L"Bitrate";
+    const wstring field2 = L"Quantity";
+    const wstring field3 = L"Cutoff Frequency";
+    const int column1Width = field1.length() + 3;
+    const int column2Width = field2.length() + 3;
+    const int column3Width = field3.length() + 3;
+    output << field1;
+    output.width(3 + field2.length());
+    output << field2;
+    output.width(3 + field3.length());
+    output << field3 << endl;
+    output.fill('-');
+    output.width(59);
+    output << '-' << endl;
+    output.fill(' ');
+
+    for (auto i = bitrateToCutoff.begin(), e = bitrateToCutoff.end(); i != e;
+        ++i) {
+        assert(i->second.second);
+
+        wstring v1 = lexical_cast<wstring>(i->first);
+        wstring v2 = lexical_cast<wstring>(i->second.second);
+        wstring v3 =
+            lexical_cast<wstring>(i->second.first / i->second.second / 1000);
+
+        LimitPricision(&v3);
+
+        output << v1;
+        output.width(column1Width - v1.length() + v2.length());
+        output << v2;
+        output.width(column2Width - v2.length() + v3.length());
+        output << v3 << endl;
+    }
+}
+
+void CreateFakeHighQualityReport(const PersistentMap::ContainerType& result,
+                                 const wstring& resultDir, int bitrate,
+                                 int minCutoff)
+{
+    wofstream output(
+        path(resultDir + L"/").remove_filename().wstring() +
+            L"/fake_high_quality_report.txt");
+
+    // Print header.
+    const wstring field1 = L"File Name";
+    const wstring field2 = L"Bitrate";
+    const wstring field3 = L"Cutoff Frequency";
+    const wstring field4 = L"Duration";
+    const int column1Width = field1.length() + 30;
+    const int column2Width = field2.length() + 3;
+    const int column3Width = field3.length() + 3;
+    const int column4Width = field4.length() + 3;
+    output << field1;
+    output.width(30 + field2.length());
+    output << field2;
+    output.width(3 + field3.length());
+    output << field3;
+    output.width(3 + field4.length());
+    output << field4 << endl;
+    output.fill('-');
+    output.width(79);
+    output << '-' << endl;
+    output.fill(' ');
+
+    for (auto i = result.begin(), e = result.end(); i != e; ++i) {
+        const PersistentMap::MediaInfo& info = i->second;
+        if (info.Format.empty() || (L"[Unknown]" == info.Format) ||
+            (L"[Crash]" == info.Format))
+            continue;
+
+        if ((info.Bitrate < bitrate) || (info.CutoffFreq > minCutoff))
+            continue;
+
+        wstring v1 = i->first;
+        wstring v2 = lexical_cast<wstring>(info.Bitrate / 1000);
+        wstring v3 = lexical_cast<wstring>(info.CutoffFreq / 1000.0);
+        wstring v4 = lexical_cast<wstring>(info.Duration / 10000000.0);
+
+        LimitPricision(&v3);
+        LimitPricision(&v4);
+
+        output << v1;
+        output.width(column1Width - v1.length() + v2.length());
+        output << v2;
+        output.width(column2Width - v2.length() + v3.length());
+        output << v3;
+        output.width(column3Width - v3.length() + v4.length());
+        output << v4 << endl;
+    }
 }
 
 class Intermedia : public DirTraversing::Callback
@@ -331,33 +460,6 @@ void MainDialog::OnBnClickedButtonAnalyze()
 
     shared_ptr<PersistentMap> pm = PersistentMap::CreateInstance(resultDir);
     PersistentMap::ContainerType& result = pm->GetMap();
-    std::map<int, std::pair<double, int>> bitrateToCutoff;
-    for (auto i = result.begin(), e = result.end(); i != e; ++i) {
-        PersistentMap::MediaInfo& info = i->second;
-        if (info.Format.empty() || (L"[Unknown]" == info.Format) ||
-            (L"[Crash]" == info.Format))
-            continue;
-
-        const int bitrate = info.Bitrate / 1000;
-
-        auto iter = bitrateToCutoff.find(bitrate);
-        if (iter == bitrateToCutoff.end()) {
-            bitrateToCutoff.insert(
-                std::pair<int, std::pair<double, int>>(
-                    bitrate, std::pair<double, int>(info.CutoffFreq, 1)));
-        } else {
-            iter->second.second++;
-            iter->second.first += info.CutoffFreq;
-        }
-    }
-
-    wofstream output(
-        path(resultDir + L"/").remove_filename().wstring() +
-            L"/bitrate_cutoff_report.txt");
-    for (auto i = bitrateToCutoff.begin(), e = bitrateToCutoff.end(); i != e;
-        ++i) {
-        assert(i->second.second);
-        output << i->first << L"(" << i->second.second << L")" << L":\t\t" <<
-            (i->second.first / i->second.second) << std::endl;
-    }
+    CreateBitrateToCutoffReport(result, resultDir);
+    CreateFakeHighQualityReport(result, resultDir, 315000, 18000);
 }
