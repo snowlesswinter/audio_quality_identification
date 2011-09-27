@@ -44,9 +44,9 @@ class MyAllocator
 {
 public:
     template<class Other> struct rebind
-	{
-	    typedef MyAllocator<Other> other;
-	};
+    {
+        typedef MyAllocator<Other> other;
+    };
 
     typedef size_t size_type;
     typedef ptrdiff_t difference_type;
@@ -57,33 +57,33 @@ public:
     typedef T value_type;
 
     MyAllocator()
-	{
-	}
+    {
+    }
 
     template<class Other>
-	MyAllocator(const MyAllocator<Other>&)
-	{
-	}
+    MyAllocator(const MyAllocator<Other>&)
+    {
+    }
 
     pointer allocate(size_type count)
-	{
-	    return (pointer)::operator new(count * sizeof(value_type));
-	}
+    {
+        return (pointer)::operator new(count * sizeof(value_type));
+    }
 
     void deallocate(pointer p, size_type)
     {
-	    ::operator delete(p);
-	}
+        ::operator delete(p);
+    }
 
     void construct(pointer p, const value_type& v)
-	{
+    {
         void* t = p;
         ::new (t) value_type(v);
-	}
+    }
 
     void destroy(pointer p)
-	{
-	}
+    {
+    }
 };
 
 typedef basic_string<wchar_t, std::char_traits<wchar_t>, MyAllocator<wchar_t>>

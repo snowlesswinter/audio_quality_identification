@@ -84,13 +84,18 @@ public:
         int cutoff;
         int64 duration;
         wstring format;
-        if (ident_.Identify(current, &sampleRate, &bitrate, &channels,
-                            &cutoff, &duration, &format))
-            persistentMap.insert(
-                PersistentMap::ContainerType::value_type(
-                    fileName,
-                    PersistentMap::MediaInfo(sampleRate, bitrate, channels,
-                                             cutoff, duration, format)));
+        try {
+            if (ident_.Identify(current, &sampleRate, &bitrate, &channels,
+                                &cutoff, &duration, &format))
+                persistentMap.insert(
+                    PersistentMap::ContainerType::value_type(
+                        fileName,
+                        PersistentMap::MediaInfo(sampleRate, bitrate, channels,
+                                                 cutoff, duration, format)));
+        } catch (const std::exception& e) {
+            persResult_.reset(); // Save all analyzed data is crucial.
+            throw e;
+        }
 
         return rv;
     }
