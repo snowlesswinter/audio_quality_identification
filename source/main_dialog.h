@@ -28,6 +28,7 @@ private:
     afx_msg void OnBnClickedButtonBrowseAudioDir();
     afx_msg void OnBnClickedButtonBrowseResultDir();
     afx_msg void OnBnClickedButtonStart();
+    afx_msg void OnBnClickedButtonAnalyze();
 
     HICON icon_;
     CComboBox audioDir_;

@@ -2,6 +2,7 @@
 
 #include <string>
 #include <memory>
+#include <fstream>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
@@ -17,6 +18,7 @@
 using std::wstring;
 using std::unique_ptr;
 using std::shared_ptr;
+using std::wofstream;
 using boost::algorithm::trim_right;
 using boost::filesystem3::path;
 using base::CancellationFlag;
@@ -148,6 +150,8 @@ BEGIN_MESSAGE_MAP(MainDialog, CDialogEx)
                   &MainDialog::OnBnClickedButtonBrowseResultDir)
     ON_BN_CLICKED(IDC_BUTTON_START,
                   &MainDialog::OnBnClickedButtonStart)
+    ON_BN_CLICKED(IDC_BUTTON_ANALYZE,
+                  &MainDialog::OnBnClickedButtonAnalyze)
 END_MESSAGE_MAP()
 
 void MainDialog::DoDataExchange(CDataExchange* dataExch)
@@ -315,4 +319,45 @@ void MainDialog::OnBnClickedButtonStart()
     Intermedia inte(&d, resultDir, d.GetCancellationFlag());
     dirTraversing_.Traverse(&inte, audioDir.c_str());
     d.DoModal();
+}
+
+void MainDialog::OnBnClickedButtonAnalyze()
+{
+    CString text;
+    resultDir_.GetWindowText(text);
+    wstring resultDir(text.GetBuffer());
+    if (resultDir_.FindString(-1, text) < 0)
+        resultDir_.AddString(text);
+
+    shared_ptr<PersistentMap> pm = PersistentMap::CreateInstance(resultDir);
+    PersistentMap::ContainerType& result = pm->GetMap();
+    std::map<int, std::pair<double, int>> bitrateToCutoff;
+    for (auto i = result.begin(), e = result.end(); i != e; ++i) {
+        PersistentMap::MediaInfo& info = i->second;
+        if (info.Format.empty() || (L"[Unknown]" == info.Format) ||
+            (L"[Crash]" == info.Format))
+            continue;
+
+        const int bitrate = info.Bitrate / 1000;
+
+        auto iter = bitrateToCutoff.find(bitrate);
+        if (iter == bitrateToCutoff.end()) {
+            bitrateToCutoff.insert(
+                std::pair<int, std::pair<double, int>>(
+                    bitrate, std::pair<double, int>(info.CutoffFreq, 1)));
+        } else {
+            iter->second.second++;
+            iter->second.first += info.CutoffFreq;
+        }
+    }
+
+    wofstream output(
+        path(resultDir + L"/").remove_filename().wstring() +
+            L"/bitrate_cutoff_report.txt");
+    for (auto i = bitrateToCutoff.begin(), e = bitrateToCutoff.end(); i != e;
+        ++i) {
+        assert(i->second.second);
+        output << i->first << L"(" << i->second.second << L")" << L":\t\t" <<
+            (i->second.first / i->second.second) << std::endl;
+    }
 }
