@@ -51,6 +51,76 @@ void LimitPricision(wstring* s)
         *s = s->substr(0, pos + 3);
 }
 
+void CreateBitrateProportionReport(const PersistentMap::ContainerType& result,
+                                   const wstring& resultDir)
+{
+    struct { int Baseline; int Count; } bitrateCounts[] =
+    {
+        { 318000, 0 }, { 222000, 0 }, { 190000, 0 }, { 126000, 0 },
+        { 94000, 0 }, { 62000, 0 }, { 30000, 0 }, { 0, 0 }, { -1, 0 }
+    };
+
+    for (auto i = result.begin(), e = result.end(); i != e; ++i) {
+        const PersistentMap::MediaInfo& info = i->second;
+        if (info.Format.empty() || (L"[Unknown]" == info.Format) ||
+            (L"[Crash]" == info.Format)) {
+            bitrateCounts[arraysize(bitrateCounts) - 1].Count++;
+            continue;
+        }
+
+        for (int j = 0; j < arraysize(bitrateCounts); ++j) {
+            if (info.Bitrate >= bitrateCounts[j].Baseline) {
+                bitrateCounts[j].Count++;
+                break;
+            }
+        }
+    }
+
+    if (result.empty())
+        return;
+
+    wofstream output(
+        path(resultDir + L"/").remove_filename().wstring() +
+            L"/bitrate_proportion_report.txt");
+
+    // Print header.
+    const wstring field1 = L"Bitrate(kbps)";
+    const wstring field2 = L"Proportion";
+    const int column1Width = field1.length() + 6;
+    const int column2Width = field2.length() + 3;
+    output << field1;
+    output.width(6 + field2.length());
+    output << field2 << endl;
+    output.fill('-');
+    output.width(29);
+    output << '-' << endl;
+    output.fill(' ');
+
+    for (int i = 0; i < arraysize(bitrateCounts); ++i) {
+        const int upper = i ? bitrateCounts[i - 1].Baseline / 1000 : 0;
+        const int lower = bitrateCounts[i].Baseline / 1000;
+        wstring bitrateDesc =
+            upper ?
+                (lexical_cast<wstring>(lower) + L" - " +
+                    lexical_cast<wstring>(upper)) :
+                (L"above " + lexical_cast<wstring>(lower));
+
+        wstring v1 =
+            (arraysize(bitrateCounts) - 1 == i) ?
+            L"Crash or Unknown" : bitrateDesc;
+        wstring v2 =
+            lexical_cast<wstring>(
+                bitrateCounts[i].Count * 100.0f / result.size());
+
+        LimitPricision(&v2);
+        v2 += '%';
+
+        output << v1;
+        output.width(column1Width - v1.length() + v2.length());
+        output << v2 << endl;
+    }
+}
+
 void CreateBitrateToCutoffReport(const PersistentMap::ContainerType& result,
                                  const wstring& resultDir)
 {
@@ -79,9 +149,9 @@ void CreateBitrateToCutoffReport(const PersistentMap::ContainerType& result,
             L"/bitrate_cutoff_report.txt");
 
     // Print header.
-    const wstring field1 = L"Bitrate";
+    const wstring field1 = L"Bitrate(kbps)";
     const wstring field2 = L"Quantity";
-    const wstring field3 = L"Cutoff Frequency";
+    const wstring field3 = L"Cutoff Frequency(kHz)";
     const int column1Width = field1.length() + 3;
     const int column2Width = field2.length() + 3;
     const int column3Width = field3.length() + 3;
@@ -115,41 +185,61 @@ void CreateBitrateToCutoffReport(const PersistentMap::ContainerType& result,
 }
 
 void CreateFakeHighQualityReport(const PersistentMap::ContainerType& result,
-                                 const wstring& resultDir, int bitrate,
-                                 int minCutoff)
+                                 const wstring& resultDir, int lowerBitrate,
+                                 int upperBitrate, int minCutoff)
 {
+    const bool upperNotSet = upperBitrate < lowerBitrate;
+    wstring bitrateDesc =
+        upperNotSet ?
+            (L"above_" + lexical_cast<wstring>(lowerBitrate / 1000)) :
+            (lexical_cast<wstring>(lowerBitrate / 1000) + L"_" +
+                lexical_cast<wstring>(upperBitrate / 1000));
     wofstream output(
         path(resultDir + L"/").remove_filename().wstring() +
-            L"/fake_high_quality_report.txt");
+            L"/fake_high_quality_" + bitrateDesc + L"_" +
+            lexical_cast<wstring>(minCutoff / 1000) + L"_report.txt");
 
     // Print header.
     const wstring field1 = L"File Name";
-    const wstring field2 = L"Bitrate";
-    const wstring field3 = L"Cutoff Frequency";
-    const wstring field4 = L"Duration";
+    const wstring field2 = L"Bitrate(kbps)";
+    const wstring field3 = L"Cutoff Frequency(kHz)";
+    const wstring field4 = L"Duration(sec)";
     const int column1Width = field1.length() + 30;
     const int column2Width = field2.length() + 3;
-    const int column3Width = field3.length() + 3;
+    const int column3Width = field3.length() + 8;
     const int column4Width = field4.length() + 3;
     output << field1;
     output.width(30 + field2.length());
     output << field2;
     output.width(3 + field3.length());
     output << field3;
-    output.width(3 + field4.length());
+    output.width(8 + field4.length());
     output << field4 << endl;
+
+    const int seperatorWidth = 113;
     output.fill('-');
-    output.width(79);
+    output.width(seperatorWidth - 1);
     output << '-' << endl;
     output.fill(' ');
 
+    int totalCount = 0;
+    int scopeCount = 0;
+    int fakeCount = 0;
     for (auto i = result.begin(), e = result.end(); i != e; ++i) {
         const PersistentMap::MediaInfo& info = i->second;
         if (info.Format.empty() || (L"[Unknown]" == info.Format) ||
             (L"[Crash]" == info.Format))
             continue;
 
-        if ((info.Bitrate < bitrate) || (info.CutoffFreq > minCutoff))
+        totalCount++;
+
+        if ((info.Bitrate < lowerBitrate) ||
+            (!upperNotSet && (info.Bitrate > upperBitrate)))
+            continue;
+
+        scopeCount++;
+
+        if (info.CutoffFreq > minCutoff)
             continue;
 
         wstring v1 = i->first;
@@ -167,6 +257,216 @@ void CreateFakeHighQualityReport(const PersistentMap::ContainerType& result,
         output << v3;
         output.width(column3Width - v3.length() + v4.length());
         output << v4 << endl;
+
+        fakeCount++;
+    }
+
+    output.fill('-');
+    output.width(seperatorWidth - 1);
+    output << '-' << endl;
+    output.fill(' ');
+
+    // Output footer.
+    wstring fake = L"Fake: " + lexical_cast<wstring>(fakeCount);
+    wstring total = L"Total: " + lexical_cast<wstring>(scopeCount);
+    wstring percentage = L"Fake Percentage: " +
+        (scopeCount ?
+            lexical_cast<wstring>(fakeCount * 100.0f / scopeCount) : L"-");
+    LimitPricision(&percentage);
+    percentage += '%';
+
+    wstring percToAll = L"Percentage To All: " +
+        (totalCount ?
+            lexical_cast<wstring>(fakeCount * 100.0f / totalCount) : L"-");
+    LimitPricision(&percToAll);
+    percToAll += '%';
+
+    output << fake;
+    output.width(column1Width - fake.length() + total.length());
+    output << total;
+    output.width(column2Width - total.length() + percentage.length());
+    output << percentage;
+    output.width(column3Width - percentage.length() + percToAll.length());
+    output << percToAll << endl;
+}
+
+void CreateDurationProportionReport(const PersistentMap::ContainerType& result,
+                                    const wstring& resultDir)
+{
+    struct { int64 Baseline; int Count; } durationCounts[] =
+    {
+        { 6000000000I64, 0 }, { 3600000000I64, 0 }, { 1800000000I64, 0 },
+        { 600000000I64, 0 }, { 300000000I64, 0 }, { 0I64, 0 }
+    };
+
+    int total = 0;
+    for (auto i = result.begin(), e = result.end(); i != e; ++i) {
+        const PersistentMap::MediaInfo& info = i->second;
+        if (info.Format.empty() || (L"[Unknown]" == info.Format) ||
+            (L"[Crash]" == info.Format))
+            continue;
+
+        total++;
+        for (int j = 0; j < arraysize(durationCounts); ++j) {
+            if (info.Duration >= durationCounts[j].Baseline) {
+                durationCounts[j].Count++;
+                break;
+            }
+        }
+    }
+
+    if (!total)
+        return;
+
+    wofstream output(
+        path(resultDir + L"/").remove_filename().wstring() +
+            L"/duration_proportion_report.txt");
+
+    // Print header.
+    const wstring field1 = L"Duration(sec)";
+    const wstring field2 = L"Proportion";
+    const int column1Width = field1.length() + 6;
+    const int column2Width = field2.length() + 3;
+    output << field1;
+    output.width(6 + field2.length());
+    output << field2 << endl;
+    output.fill('-');
+    output.width(29);
+    output << '-' << endl;
+    output.fill(' ');
+
+    for (int i = 0; i < arraysize(durationCounts); ++i) {
+        wstring upper =
+            lexical_cast<wstring>(
+                i ? durationCounts[i - 1].Baseline / 10000000.0 : 0.0);
+        wstring lower =
+            lexical_cast<wstring>(durationCounts[i].Baseline / 10000000.0);
+        LimitPricision(&upper);
+        LimitPricision(&lower);
+
+        wstring durationDesc = i ? lower + L" to " + upper : L"over " + lower;
+        wstring v1 = durationDesc;
+        wstring v2 =
+            lexical_cast<wstring>(durationCounts[i].Count * 100.0f / total);
+
+        LimitPricision(&v2);
+        v2 += '%';
+
+        output << v1;
+        output.width(column1Width - v1.length() + v2.length());
+        output << v2 << endl;
+    }
+}
+
+void CreateChannelProportionReport(const PersistentMap::ContainerType& result,
+                                   const wstring& resultDir)
+{
+    struct { int Baseline; int Count; } channelCounts[] =
+    {
+        { 3, 0 }, { 2, 0 }, { 1, 0 }
+    };
+
+    int total = 0;
+    for (auto i = result.begin(), e = result.end(); i != e; ++i) {
+        const PersistentMap::MediaInfo& info = i->second;
+        if (info.Format.empty() || (L"[Unknown]" == info.Format) ||
+            (L"[Crash]" == info.Format))
+            continue;
+
+        total++;
+        for (int j = 0; j < arraysize(channelCounts); ++j) {
+            if (info.Channels >= channelCounts[j].Baseline) {
+                channelCounts[j].Count++;
+                break;
+            }
+        }
+    }
+
+    if (!total)
+        return;
+
+    wofstream output(
+        path(resultDir + L"/").remove_filename().wstring() +
+            L"/channel_proportion_report.txt");
+
+    // Print header.
+    const wstring field1 = L"Channels";
+    const wstring field2 = L"Proportion";
+    const int column1Width = field1.length() + 8;
+    const int column2Width = field2.length() + 3;
+    output << field1;
+    output.width(8 + field2.length());
+    output << field2 << endl;
+    output.fill('-');
+    output.width(29);
+    output << '-' << endl;
+    output.fill(' ');
+
+    for (int i = 0; i < arraysize(channelCounts); ++i) {
+        wstring channel =
+            i ?
+                lexical_cast<wstring>(channelCounts[i].Baseline) :
+                L"More Than 2";
+        wstring proportion =
+            lexical_cast<wstring>(channelCounts[i].Count * 100.0f / total);
+
+        LimitPricision(&proportion);
+        proportion += '%';
+
+        output << channel;
+        output.width(column1Width - channel.length() + proportion.length());
+        output << proportion << endl;
+    }
+}
+
+void CreateSampleRateProportionReport(
+    const PersistentMap::ContainerType& result, const wstring& resultDir)
+{
+    int total = 0;
+    std::map<int, int> rateToCount;
+    for (auto i = result.begin(), e = result.end(); i != e; ++i) {
+        const PersistentMap::MediaInfo& info = i->second;
+        if (info.Format.empty() || (L"[Unknown]" == info.Format) ||
+            (L"[Crash]" == info.Format))
+            continue;
+
+        total++;
+        auto iter = rateToCount.find(info.SampleRate);
+        if (iter == rateToCount.end())
+            rateToCount.insert(std::pair<int, int>(info.SampleRate, 1));
+        else
+            iter->second++;
+    }
+
+    if (!total)
+        return;
+
+    wofstream output(
+        path(resultDir + L"/").remove_filename().wstring() +
+            L"/sample_rate_proportion_report.txt");
+
+    // Print header.
+    const wstring field1 = L"Sample Rate(Hz)";
+    const wstring field2 = L"Proportion";
+    const int column1Width = field1.length() + 3;
+    const int column2Width = field2.length() + 3;
+    output << field1;
+    output.width(3 + field2.length());
+    output << field2 << endl;
+    output.fill('-');
+    output.width(29);
+    output << '-' << endl;
+    output.fill(' ');
+
+    for (auto i = rateToCount.begin(), e = rateToCount.end(); i != e; ++i) {
+        wstring rate = lexical_cast<wstring>(i->first);
+        wstring proportion = lexical_cast<wstring>(i->second * 100.0f / total);
+        LimitPricision(&proportion);
+        proportion += '%';
+
+        output << rate;
+        output.width(column1Width - rate.length() + proportion.length());
+        output << proportion << endl;
     }
 }
 
@@ -459,7 +759,36 @@ void MainDialog::OnBnClickedButtonAnalyze()
         resultDir_.AddString(text);
 
     shared_ptr<PersistentMap> pm = PersistentMap::CreateInstance(resultDir);
+
+#if defined(EXCLUDE_SHORT_MUSIC)
+    PersistentMap::ContainerType& ref = pm->GetMap();
+    PersistentMap::ContainerType result;
+    for (auto i = ref.begin(), e = ref.end(); i != e; ++i) {
+        const PersistentMap::MediaInfo& info = i->second;
+        if (info.Duration > 600000000I64) {
+            result.insert(
+                PersistentMap::ContainerType::value_type(i->first, info));
+        }
+    }
+#else
     PersistentMap::ContainerType& result = pm->GetMap();
+#endif
+
+    CreateBitrateProportionReport(result, resultDir);
     CreateBitrateToCutoffReport(result, resultDir);
-    CreateFakeHighQualityReport(result, resultDir, 315000, 18000);
+
+    struct { int Bitrate; int Cutoff; } baselines[] =
+    {
+        { 318000, 18000 }, { 222000, 17000 }, { 190000, 16000 },
+        { 126000, 15000 }
+    };
+
+    for (int i = 0; i < arraysize(baselines); ++i)
+        CreateFakeHighQualityReport(result, resultDir, baselines[i].Bitrate,
+                                    i > 0 ? baselines[i - 1].Bitrate : 0,
+                                    baselines[i].Cutoff);
+
+    CreateDurationProportionReport(result, resultDir);
+    CreateChannelProportionReport(result, resultDir);
+    CreateSampleRateProportionReport(result, resultDir);
 }
