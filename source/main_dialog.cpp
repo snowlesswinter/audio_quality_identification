@@ -51,6 +51,34 @@ void LimitPricision(wstring* s)
         *s = s->substr(0, pos + 3);
 }
 
+// Not a standard implementation. Just for convenience.
+int CalcCharWidth(const wstring& s)
+{
+    int numNonAsciiChar = 0;
+    std::for_each(
+        s.begin(), s.end(),
+        [&numNonAsciiChar](wchar_t c) {
+            if (c > 127)
+                numNonAsciiChar++;
+        });
+
+    return s.length() + numNonAsciiChar;
+}
+
+void TrimRight(wstring* s, int n)
+{
+    int widthReduced = 0;
+    int charCount = 0;
+    for (auto c = s->rbegin(); c != s->rend(); ++c) {
+        widthReduced += (*c > 127) ? 2 : 1;
+        charCount++;
+        if (widthReduced >= n) {
+            s->resize(s->length() - charCount);
+            return;
+        }
+    }
+}
+
 void CreateBitrateProportionReport(const PersistentMap::ContainerType& result,
                                    const wstring& resultDir)
 {
@@ -198,25 +226,28 @@ void CreateFakeHighQualityReport(const PersistentMap::ContainerType& result,
         path(resultDir + L"/").remove_filename().wstring() +
             L"/fake_high_quality_" + bitrateDesc + L"_" +
             lexical_cast<wstring>(minCutoff / 1000) + L"_report.txt");
+    output.imbue(std::locale("chs"));
 
     // Print header.
     const wstring field1 = L"File Name";
     const wstring field2 = L"Bitrate(kbps)";
     const wstring field3 = L"Cutoff Frequency(kHz)";
     const wstring field4 = L"Duration(sec)";
-    const int column1Width = field1.length() + 30;
+    const int maxFileNameLength = 100;
+    assert(field2.length() < maxFileNameLength);
+    const int column1Width = maxFileNameLength + 1;
     const int column2Width = field2.length() + 3;
     const int column3Width = field3.length() + 8;
     const int column4Width = field4.length() + 3;
     output << field1;
-    output.width(30 + field2.length());
+    output.width(maxFileNameLength + 1 - field1.length() + field2.length());
     output << field2;
     output.width(3 + field3.length());
     output << field3;
     output.width(8 + field4.length());
     output << field4 << endl;
 
-    const int seperatorWidth = 113;
+    const int seperatorWidth = 183;
     output.fill('-');
     output.width(seperatorWidth - 1);
     output << '-' << endl;
@@ -247,11 +278,17 @@ void CreateFakeHighQualityReport(const PersistentMap::ContainerType& result,
         wstring v3 = lexical_cast<wstring>(info.CutoffFreq / 1000.0);
         wstring v4 = lexical_cast<wstring>(info.Duration / 10000000.0);
 
+        int v1Width = CalcCharWidth(v1);
+        if (v1Width > maxFileNameLength) {
+            TrimRight(&v1, v1Width - maxFileNameLength);
+            v1Width = maxFileNameLength;
+        }
+
         LimitPricision(&v3);
         LimitPricision(&v4);
 
         output << v1;
-        output.width(column1Width - v1.length() + v2.length());
+        output.width(column1Width - v1Width + v2.length());
         output << v2;
         output.width(column2Width - v2.length() + v3.length());
         output << v3;
