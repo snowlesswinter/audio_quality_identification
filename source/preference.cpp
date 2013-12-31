@@ -6,7 +6,7 @@
 
 using std::wstring;
 using std::unique_ptr;
-using boost::filesystem3::path;
+using boost::filesystem::path;
 
 namespace {
 wstring GetStorageFilePathName()

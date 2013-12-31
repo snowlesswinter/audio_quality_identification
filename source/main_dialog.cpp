@@ -22,7 +22,7 @@ using std::shared_ptr;
 using std::wofstream;
 using std::endl;
 using boost::algorithm::trim_right;
-using boost::filesystem3::path;
+using boost::filesystem::path;
 using boost::lexical_cast;
 using base::CancellationFlag;
 

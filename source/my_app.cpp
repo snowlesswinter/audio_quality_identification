@@ -17,7 +17,7 @@ using std::wstring;
 using std::unique_ptr;
 using boost::posix_time::ptime;
 using boost::posix_time::second_clock;
-using boost::filesystem3::path;
+using boost::filesystem::path;
 
 BEGIN_MESSAGE_MAP(AudioQualityIdentificationApp, CWinApp)
     ON_COMMAND(ID_HELP, &CWinApp::OnHelp)

@@ -17,7 +17,7 @@ using std::ifstream;
 using std::vector;
 using std::max;
 using std::shared_ptr;
-using boost::filesystem3::path;
+using boost::filesystem::path;
 using base::CancellationFlag;
 
 namespace {

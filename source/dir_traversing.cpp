@@ -12,12 +12,12 @@
 using std::wstring;
 using std::unique_ptr;
 using std::list;
-using boost::filesystem3::path;
-using boost::filesystem3::exists;
-using boost::filesystem3::is_regular_file;
-using boost::filesystem3::directory_iterator;
-using boost::filesystem3::is_directory;
-using boost::filesystem3::filesystem_error;
+using boost::filesystem::path;
+using boost::filesystem::exists;
+using boost::filesystem::is_regular_file;
+using boost::filesystem::directory_iterator;
+using boost::filesystem::is_directory;
+using boost::filesystem::filesystem_error;
 using boost::algorithm::iequals;
 
 namespace {

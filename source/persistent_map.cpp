@@ -15,7 +15,7 @@ using std::wstring;
 using std::ifstream;
 using std::ofstream;
 using std::shared_ptr;
-using boost::filesystem3::path;
+using boost::filesystem::path;
 using boost::archive::xml_iarchive;
 using boost::archive::xml_oarchive;
 using boost::archive::archive_exception;
